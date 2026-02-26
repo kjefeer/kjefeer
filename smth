@@ -1,0 +1,60 @@
+repeat task.wait() until game:IsLoaded()
+
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+local VirtualUser = game:GetService("VirtualUser")
+local LocalPlayer = Players.LocalPlayer
+
+pcall(function() setfpscap(20) end)
+
+LocalPlayer.Idled:Connect(function()
+    VirtualUser:Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+    task.wait(0.5)
+    VirtualUser:Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+end)
+
+local lastTimestamp = 0
+local FILE_NAME = "command.json"
+
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        
+        local hasFile = false
+        pcall(function() hasFile = isfile(FILE_NAME) end)
+        
+        if hasFile then
+            local readSuccess, fileContent = pcall(function()
+                return readfile(FILE_NAME)
+            end)
+            
+            if readSuccess and fileContent and string.len(fileContent) > 5 then
+                local decodeSuccess, data = pcall(function()
+                    return HttpService:JSONDecode(fileContent)
+                end)
+                
+                if decodeSuccess and type(data) == "table" and data.timestamp ~= lastTimestamp then
+                    lastTimestamp = data.timestamp
+                    
+                    if data.type == "execute" and data.code then
+                        print("[VPS] Code received! Executing...")
+                        local func, compileErr = loadstring(data.code)
+                        
+                        if func then
+                            task.spawn(function()
+                                local execSuccess, execErr = pcall(func)
+                                if not execSuccess then
+                                    warn("[VPS] Exec Error: " .. tostring(execErr))
+                                end
+                            end)
+                        else
+                            warn("[VPS] Compile Error: " .. tostring(compileErr))
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+print("[VPS] Working!")
